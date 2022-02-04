@@ -100,6 +100,10 @@ pub struct StartOpts {
     pub ttrpc_address: String,
     /// Namespace for the container.
     pub namespace: String,
+    /// Grouping for multiple containers sharing the same shim.
+    /// Used to determine the socket address for the shim.
+    /// If not set, "id" will be assumed here.
+    pub grouping: String,
 }
 
 /// Helper structure that wraps atomic bool to signal shim server when to shutdown the TTRPC server.
@@ -218,11 +222,12 @@ where
     match flags.action.as_str() {
         "start" => {
             let args = StartOpts {
-                id: flags.id,
+                id: flags.id.clone(),
                 publish_binary: flags.publish_binary,
                 address: flags.address,
                 ttrpc_address,
                 namespace: flags.namespace,
+                grouping: flags.id.clone(),
             };
 
             let address = shim
@@ -356,7 +361,12 @@ fn start_listener(address: &str) -> Result<UnixListener, Error> {
 pub fn spawn(opts: StartOpts, vars: Vec<(&str, &str)>) -> Result<String, Error> {
     let cmd = env::current_exe()?;
     let cwd = env::current_dir()?;
-    let address = socket_address(&opts.address, &opts.namespace, &opts.id);
+
+    let mut grouping = opts.grouping;
+    if grouping == "" {
+        grouping = opts.id.clone();
+    }
+    let address = socket_address(&opts.address, &opts.namespace, &grouping);
 
     // Create socket and prepare listener.
     // We'll use `add_listener` when creating TTRPC server.
